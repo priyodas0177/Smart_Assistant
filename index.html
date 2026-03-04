@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Samsung Phone Advisor</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 480px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .result {
+            margin-top: 20px;
+            background: #f1f1f1;
+            padding: 12px;
+            border-radius: 5px;
+            white-space: pre-line;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="box">
+
+    <h2>Samsung Phone Advisor</h2>
+
+    <form method="post" action="/ask">
+        <input 
+            type="text" 
+            name="question" 
+            placeholder="Ask something " 
+            required
+        >
+
+        <button type="submit">Ask</button>
+    </form>
+
+    {% if answer %}
+        <div class="result">
+            {{ answer }}
+        </div>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
