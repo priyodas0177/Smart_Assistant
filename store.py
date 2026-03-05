@@ -74,162 +74,57 @@ def ram_storage(internal_text: str):
 def parse_price(text:str):
     return first_int(text)
 
-#------------------- collect 20-30 phone links-----------
-#It collects Samsung phone page links from GSMArena until it reaches the limit (30).
-def phone_link(limit=30, delay=1.0):
-    links= [] 
-    seen= set() 
+#---------------DATABASE-------------
+def get_or_create_brand(cursor,brand_name:str):
+    """Insert brand if not exist, return brand_id"""
+    cursor.execute("SELECT id from brands WHERE brand_name=%s",(brand_name,))
+    row=cursor.fetchone()
+    if row: return row[0]
+    cursor.execute("INSERT INTO brands (brand_name) VALUES (%s) RETURNING id", (brand_name,))
+    return cursor.fetchone()[0]
 
-    page_urls=[Base + "samsung-phones-9.php"]
-    for p in range(2,8):
-        page_urls.append(Base+f"samsung-phones-f-9-0-p{p}.php")
+def upsert_phone(cursor,phone: dict):
+    brand_id=get_or_create_brand(cursor,phone["brand"])
+    cursor.execute("""
+    INSERT INTO phones (
+        brand_id, model_name, release_date,
+        display_size, display_type,
+        battery_mah, camera_mp,
+        ram_gb, storage_gb, price_usd
+    )
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    ON CONFLICT (brand_id, model_name) DO UPDATE SET
+        release_date = EXCLUDED.release_date,
+        display_size = EXCLUDED.display_size,
+        display_type = EXCLUDED.display_type,
+        battery_mah  = EXCLUDED.battery_mah,
+        camera_mp    = EXCLUDED.camera_mp,
+        ram_gb       = EXCLUDED.ram_gb,
+        storage_gb   = EXCLUDED.storage_gb,
+        price_usd    = EXCLUDED.price_usd
+""", (
+    brand_id,
+    phone["model_name"],
+    phone["release_date"],
+    phone["display_size"],
+    phone["display_type"],
+    phone["battery_mah"], 
+    phone["camera_mp"],
+    phone["ram_gb"],
+    phone["storage_gb"],
+    phone["price_usd"],
+))
 
-    for page_url in page_urls:
-        soup=get_soup(page_url) 
-
-        for a in soup.select(".makers li a"):
-            href=a.get("href") 
-            if not href or not href.endswith(".php"):
-                continue
-            full=Base+href
-            if full not in seen: 
-                seen.add(full)
-                links.append(full)
-            if len(links) >=limit: 
-                return links
-        time.sleep(delay)
-    return links
-
-
-def phone_details(phone_url:str):
+# ------------------------ Scrapers ------------------------
+def scrape_gsmarena(phone_url:str):
+    """Scrape phone specs from gsmarena"""
     soup=get_soup(phone_url)
 
-    #model name
-    phone_name=soup.select_one("h1.specs-phone-name-title")
-    model_name=phone_name.get_text(strip=True) if phone_name else None
+    #brand & model
+    title=soup.select_one("H1.specs-phone-name-title")
+    if not title:return None
+    full_name=title.get_text(strip=True)
+    brand_name=full_name
 
-    #phone specs
-    specs={}
-    for row in soup.select("table tr"):
-        key=row.select_one("td.ttl a")
-        val=row.select_one("td.nfo")
-        if key and val:
-            k=key.get_text(" ",strip=True).lower() 
-            v=val.get_text(" ",strip=True) 
-            specs[k]=v
-
-    #release date 
-    release_date=parse_release_date(specs.get("announced"))
-
-    #display
-    display_size=specs.get("size")
-    display_type=specs.get("type")
-    display=" | ".join([x for x in [display_size, display_type] if x]) or None
-
-    #battery
-    battery=None
-    for v in specs.values():
-        if "mAh" in v:
-            battery=first_int(v)
-            if battery:
-                break
     
-    #camera
-    camera=None
-    for v in specs.values():
-        if "MP" in v:
-            mp=first_int(v)
-            if mp and mp>=8:
-                camera=mp
-                break
 
-    #ram & storage
-    ram,storage=ram_storage(specs.get("internal",""))
-
-    #price
-    price_text=None
-    price_tag=soup.select_one("[data-spec='price']") 
-    if price_tag:
-        price_text = price_tag.get_text(" ", strip=True)
-    if not price_text:
-        price_text=specs.get("price")
-    price=parse_price(price_text) if price_text else None
-
-    return {
-        "model_name": model_name,
-        "release_date": release_date,
-        "display": display,
-        "battery": battery,
-        "camera": camera,
-        "ram": ram,
-        "storage": storage,
-        "price": price,
-        "url": phone_url
-    }
-
-def up_phone(cursor, phone):
-    cursor.execute("""
-        INSERT INTO phones (
-            model_name, release_date, display,
-            battery, camera, ram, storage, price, url
-        )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        ON CONFLICT (model_name) DO UPDATE SET
-            release_date = EXCLUDED.release_date,
-            display      = EXCLUDED.display,
-            battery      = EXCLUDED.battery,
-            camera       = EXCLUDED.camera,
-            ram          = EXCLUDED.ram,
-            storage      = EXCLUDED.storage,
-            price        = EXCLUDED.price,
-            url          = EXCLUDED.url
-    """, (
-        phone["model_name"],
-        phone["release_date"],
-        phone["display"],
-        phone["battery"],
-        phone["camera"],
-        phone["ram"],
-        phone["storage"],
-        phone["price"],
-        phone["url"],
-    ))
-    
-def main(limit=30):
-    links = phone_link(limit=limit, delay=1.2)
-    print(f"found {len(links)} phone links")
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    saved = 0
-    for i, url in enumerate(links, start=1):
-        try:
-            phone = phone_details(url)
-            if not phone["model_name"]:
-                print(f"[{i}] Skipped (no name): {url}")
-                continue
-
-            up_phone(cursor, phone)
-            conn.commit()
-            saved += 1
-
-            print(f"[{i}] Saved: {phone['model_name']} | battery={phone['battery']} | camera={phone['camera']} | price={phone['price']}")
-            time.sleep(1.2)
-
-        except Exception as e:
-            try:
-                if conn and conn.closed == 0:
-                    conn.rollback()
-            except:
-                pass
-            print(f"[{i}] ERROR: {url} -> {e}")
-            time.sleep(2)
-
-    #  close AFTER loop finishes
-    cursor.close()
-    conn.close()
-    print(f"Saved {saved} phones")
-if __name__=="__main__":
-    main(limit=30)
-    
