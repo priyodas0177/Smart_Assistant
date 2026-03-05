@@ -1,0 +1,31 @@
+git config --global user.name "Priyo Das"
+git config --global user.email "your-email@gmail.com"
+cd C:\Users\Priyo\Desktop
+git clone https://github.com/priyodas0177/Mypython.git
+
+1. git status
+2. git add . (if i select all file) / git add filename (individual file)
+3. git commit -m "write anything"
+4. git push origin branch name "main"
+5. download files into my folder path-> "git pull origin main"
+
+Enviroment active for windows:
+.\.myvenv\Scripts\Activate
+
+Enviroment Deactive
+deactivate
+
+Enviroment active for MAC:
+source env/bin/activate
+
+if i install any package then update the requirements files: 
+pip freeze > requirements.txt 
+
+one click push for mac :
+./gitpush.sh "Update project files"
+
+one click push for windows :
+.\gitpush.bat " latest files"
+
+
+
