@@ -128,3 +128,5 @@ def scrape_gsmarena(phone_url:str):
 
     
 
+
+
