@@ -124,9 +124,58 @@ def scrape_gsmarena(phone_url:str):
     title=soup.select_one("H1.specs-phone-name-title")
     if not title:return None
     full_name=title.get_text(strip=True)
-    brand_name=full_name
+    brand=full_name.split()[0]
+    model_name=full_name
 
-    
+    #specs table
+    specs={}
+    for row in soup.select("table tr"):
+        key=row.select_one("td.ttl a")
+        val=row.select_one("td.nfo")
+        if key and val:
+            k=key.getText(" ",strip=True).lower()
+            v=val.get_text(" ",strip=True)
+            specs[k]=v
 
+    release_date=parse_release_date(specs.get("announced"))
+    display_text=specs.get("size", " ")
+    display_type=specs.get("type", " ")
+    battery=None
+    camera=None
 
+    for v in specs.values():
+        if "mAh" in v:
+            battery=first_int(v)
+            if battery: break
 
+    for v in specs.values():
+        if "MP" in v:
+            mp=first_int(v)
+            if mp and mp>=8:
+                camera=mp
+                break
+    ram,storage=ram_storage(specs.get("internal", ""))
+    price_text=parse_price(price_text) if price_text else None
+    price=parse_price(price_text) if price_text else None
+
+    return {
+        "brand": brand,
+        "model_name": model_name,
+        "release_date": release_date,
+        "display_size": first_int(display_text),
+        "display_type": display_type,
+        "battery_mah": battery,
+        "camera_mp": camera,
+        "ram_gb": ram,
+        "storage_gb": storage,
+        "price_usd": price
+    }
+
+def scrape_dazzle(phone_name:str):
+    """Optional: scrape price from Dazzle Bangladesh."""
+    search_url=f"https://dazzle.com.bd/search?q={phone_name.replace(' ','+')}"
+    soup=get_soup(search_url)
+    price_tag=soup.select_one(".product-price")
+    if not price_tag:return None
+    price= parse_price(price_tag.get_text())
+    return {"price_usd":price}
